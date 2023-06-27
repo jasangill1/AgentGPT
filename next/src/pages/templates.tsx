@@ -1,13 +1,13 @@
-import SidebarLayout from "../layout/sidebar";
-import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import React, { useState } from "react";
+import type { GetStaticProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import nextI18NextConfig from "../../next-i18next.config.js";
 import { languages } from "../utils/languages";
-import type { GetStaticProps } from "next";
-import { TEMPLATE_DATA } from "../components/templates/TemplateData";
 import TemplateCard from "../components/templates/TemplateCard";
 import FadeIn from "../components/motions/FadeIn";
 import SearchBar from "../components/templates/TemplateSearch";
+import SidebarLayout from "../layout/sidebar.jsx";
+import { TEMPLATE_DATA } from "../components/templates/TemplateData.jsx";
 
 const Templates = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -15,13 +15,14 @@ const Templates = () => {
 
   const filteredData = TEMPLATE_DATA.filter((model) => {
     const matchQuery = model.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCategory = category === "" || model.category.toLowerCase() === category.toLowerCase();
+    const matchCategory =
+      category === "" || model.category.toLowerCase() === category.toLowerCase();
     return matchQuery && matchCategory;
   });
 
   return (
     <SidebarLayout>
-      <div className="flex flex-col p-10 h-full w-full">
+      <div className="flex h-full w-full flex-col p-10">
         <FadeIn initialX={-45} initialY={0}>
           <div>
             <h1 className="text-4xl font-bold text-white">Templates</h1>
@@ -32,7 +33,7 @@ const Templates = () => {
         </FadeIn>
         <FadeIn initialY={45}>
           <SearchBar setSearchQuery={setSearchQuery} setCategory={setCategory} />
-          <div className="flex flex-wrap gap-4 justify-center">
+          <div className="flex flex-wrap justify-center gap-4">
             {filteredData.map((model) => (
               <TemplateCard key={model.name + model.description} model={model} />
             ))}

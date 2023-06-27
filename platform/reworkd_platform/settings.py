@@ -6,6 +6,8 @@ from typing import List, Optional
 from pydantic import BaseSettings
 from yarl import URL
 
+from reworkd_platform.constants import ENV_PREFIX
+
 TEMP_DIR = Path(gettempdir())
 
 
@@ -52,6 +54,7 @@ class Settings(BaseSettings):
 
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"
+    allowed_origins_regex: Optional[str] = None
 
     # Variables for the database
     db_host: str = "localhost"
@@ -68,6 +71,11 @@ class Settings(BaseSettings):
 
     # Variables for Supabase PG_Vector DB
     supabase_vecs_url: Optional[str] = None
+
+    # Variables for Pinecone DB
+    pinecone_api_key: Optional[str] = None
+    pinecone_index_name: Optional[str] = None
+    pinecone_environment: Optional[str] = None
 
     # Sentry's configuration.
     sentry_dsn: Optional[str] = None
@@ -97,7 +105,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
-        env_prefix = "REWORKD_PLATFORM_"
+        env_prefix = ENV_PREFIX
         env_file_encoding = "utf-8"
 
 
