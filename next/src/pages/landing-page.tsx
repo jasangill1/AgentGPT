@@ -10,7 +10,10 @@ import FadeIn from "../components/motions/FadeIn";
 const HomePage = () => {
   return (
     <div className="min-w-screen mx-6 grid min-h-screen place-items-center py-2 selection:bg-purple-700/25 lg:overflow-x-hidden lg:overflow-y-hidden">
-      <AppHead title="Reworkd" />
+      <AppHead
+        title="Reworkd"
+        ogTitle="Automate core business workflows with the help of AI Agents"
+      />
       <Image src="/stars.svg" alt="stars" fill className="absolute -z-50" />
 
       <div className="flex h-full max-w-[1440px] flex-col justify-between">
@@ -22,7 +25,7 @@ const HomePage = () => {
           <footer className="flex flex-col items-center gap-2 pb-4 lg:flex-row">
             <Backing className="flex-grow" />
             <FooterLinks />
-            <div className="font-inter text-sm font-normal text-white/50 lg:order-first">
+            <div className="font-inter text-xs font-normal text-white/30 lg:order-first lg:text-sm">
               &copy; 2023 Reworkd AI, Inc.
             </div>
           </footer>
