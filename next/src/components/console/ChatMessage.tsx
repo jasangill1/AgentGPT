@@ -1,7 +1,9 @@
-import React from "react";
-import { useTranslation } from "next-i18next";
 import clsx from "clsx";
-import { getMessageContainerStyle, getTaskStatusIcon } from "../utils/helpers";
+import { useTranslation } from "next-i18next";
+import React, { useState } from "react";
+import { FaCheck } from "react-icons/fa";
+import { FiClipboard } from "react-icons/fi";
+
 import MarkdownRenderer from "./MarkdownRenderer";
 import type { Message } from "../../types/message";
 import { MESSAGE_TYPE_GOAL, MESSAGE_TYPE_SYSTEM } from "../../types/message";
@@ -12,9 +14,22 @@ import {
   TASK_STATUS_FINAL,
   TASK_STATUS_STARTED,
 } from "../../types/task";
+import Button from "../../ui/button";
+import { getMessageContainerStyle, getTaskStatusIcon } from "../utils/helpers";
 
 const ChatMessage = ({ message }: { message: Message }) => {
   const [t] = useTranslation();
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopy = () => {
+    try {
+      const textToCopy = isAction(message) ? message.info || "" : message.value;
+      void navigator.clipboard.writeText(textToCopy);
+      setIsCopied(true);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   return (
     <div
@@ -24,8 +39,7 @@ const ChatMessage = ({ message }: { message: Message }) => {
         "sm:my-1.5 sm:text-sm"
       )}
     >
-      {message.type != MESSAGE_TYPE_SYSTEM && (
-        // Avoid for system messages as they do not have an icon and will cause a weird space
+      {message.type !== MESSAGE_TYPE_SYSTEM && !isAction(message) && (
         <>
           <div className="mr-2 inline-block h-[0.9em]">{getTaskStatusIcon(message, {})}</div>
           <span className="mr-2 font-bold">{getMessagePrefix(message)}</span>
@@ -34,23 +48,43 @@ const ChatMessage = ({ message }: { message: Message }) => {
 
       {isAction(message) ? (
         <>
+          <div className="flex flex-row">
+            <div className="mr-2 inline-block h-[0.9em]">{getTaskStatusIcon(message, {})}</div>
+            <span className="mr-2 flex-1 font-bold">{getMessagePrefix(message)}</span>
+            <Button
+              className="justify-end text-zinc-400 hover:text-white"
+              onClick={handleCopy}
+              aria-label="Copy"
+            >
+              <div className="w-full">{isCopied ? <FaCheck /> : <FiClipboard size={15} />}</div>
+            </Button>
+          </div>
           <hr className="my-2 border border-white/20" />
-          <div className="prose">
+          <div>
             <MarkdownRenderer>{message.info || ""}</MarkdownRenderer>
           </div>
         </>
       ) : (
         <>
           <span>{message.value}</span>
-          {
-            // Link to the FAQ if it is a shutdown message
-            message.type == MESSAGE_TYPE_SYSTEM &&
-              (message.value.toLowerCase().includes("shut") ||
-                message.value.toLowerCase().includes("error")) && <FAQ />
-          }
+          {message.type === MESSAGE_TYPE_SYSTEM &&
+            (message.value.toLowerCase().includes("shut") ||
+              message.value.toLowerCase().includes("error")) && <FAQ />}
         </>
       )}
     </div>
+  );
+};
+
+const FAQ = () => {
+  return (
+    <p>
+      <br />
+      If you are facing issues, please head over to our{" "}
+      <a href="https://docs.reworkd.ai/essentials/FAQ" className="text-sky-500">
+        FAQ
+      </a>
+    </p>
   );
 };
 
@@ -66,17 +100,5 @@ const getMessagePrefix = (message: Message) => {
     return `Finished:`;
   }
   return "";
-};
-
-const FAQ = () => {
-  return (
-    <p>
-      <br />
-      If you are facing issues, please head over to our{" "}
-      <a href="https://docs.reworkd.ai/faq" className="text-sky-500">
-        FAQ
-      </a>
-    </p>
-  );
 };
 export { ChatMessage };

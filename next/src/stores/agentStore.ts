@@ -1,45 +1,55 @@
-import { createSelectors } from "./helpers";
 import type { StateCreator } from "zustand";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type AutonomousAgent from "../services/agent/autonomous-agent";
+
+import { createSelectors } from "./helpers";
 import type { ActiveTool } from "../hooks/useTools";
-
-const resetters: (() => void)[] = [];
-
-const initialAgentState = {
-  agent: null,
-  isAgentThinking: false,
-  isAgentStopped: true,
-  isAgentPaused: undefined,
-};
+import type { AgentLifecycle } from "../services/agent/agent-run-model";
+import type AutonomousAgent from "../services/agent/autonomous-agent";
 
 interface AgentSlice {
   agent: AutonomousAgent | null;
+  lifecycle: AgentLifecycle;
+  setLifecycle: (AgentLifecycle) => void;
+  summarized: boolean;
+  setSummarized: (boolean) => void;
   isAgentThinking: boolean;
   setIsAgentThinking: (isThinking: boolean) => void;
-  isAgentStopped: boolean;
-  setIsAgentStopped: (boolean) => void;
   setAgent: (newAgent: AutonomousAgent | null) => void;
 }
+
+const initialAgentState = {
+  agent: null,
+  lifecycle: "offline" as const,
+  summarized: false,
+  isAgentThinking: false,
+  isAgentPaused: undefined,
+};
 
 interface ToolsSlice {
   tools: Omit<ActiveTool, "active">[];
   setTools: (tools: ActiveTool[]) => void;
 }
 
+const resetters: (() => void)[] = [];
+
 const createAgentSlice: StateCreator<AgentSlice> = (set, get) => {
   resetters.push(() => set(initialAgentState));
   return {
     ...initialAgentState,
+    setLifecycle: (lifecycle: AgentLifecycle) => {
+      set(() => ({
+        lifecycle: lifecycle,
+      }));
+    },
+    setSummarized: (summarized: boolean) => {
+      set(() => ({
+        summarized: summarized,
+      }));
+    },
     setIsAgentThinking: (isThinking: boolean) => {
       set(() => ({
         isAgentThinking: isThinking,
-      }));
-    },
-    setIsAgentStopped: (isStopped: boolean) => {
-      set((state) => ({
-        isAgentStopped: isStopped,
       }));
     },
     setAgent: (newAgent) => {
@@ -82,3 +92,5 @@ export const useAgentStore = createSelectors(
     )
   )
 );
+
+export const resetAllAgentSlices = () => resetters.forEach((resetter) => resetter());

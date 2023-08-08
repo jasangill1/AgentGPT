@@ -1,13 +1,22 @@
 import { v4 } from "uuid";
-import type { Task, TaskStatus } from "../../types/task";
-import { useTaskStore } from "../../stores/taskStore";
 
+import { useAgentStore } from "../../stores";
+import { useTaskStore } from "../../stores/taskStore";
+import type { Task, TaskStatus } from "../../types/task";
+
+/*
+ * Abstraction over model used by Autonomous Agent to encapsulate the data required for a given run
+ */
 export interface AgentRunModel {
+  getId(): string;
+
   getName(): string;
 
   getGoal(): string;
 
-  getId(): string;
+  getLifecycle(): AgentLifecycle;
+
+  setLifecycle(AgentLifecycle): void;
 
   getRemainingTasks(): Task[];
 
@@ -15,10 +24,14 @@ export interface AgentRunModel {
 
   updateTaskStatus(task: Task, status: TaskStatus): Task;
 
-  getCompletedTasks(): string[];
+  updateTaskResult(task: Task, result: string): Task;
+
+  getCompletedTasks(): Task[];
 
   addTask(taskValue: string): void;
 }
+ 
+export type AgentLifecycle = "offline" | "running" | "pausing" | "paused" | "stopped";
 
 export class DefaultAgentRunModel implements AgentRunModel {
   id: string;
@@ -35,10 +48,11 @@ export class DefaultAgentRunModel implements AgentRunModel {
     this.completedTasks = [];
   }
 
+  getId = () => this.id;
   getName = () => this.name;
   getGoal = () => this.goal;
-
-  getId = () => this.id;
+  getLifecycle = (): AgentLifecycle => useAgentStore.getState().lifecycle;
+  setLifecycle = (lifecycle: AgentLifecycle) => useAgentStore.getState().setLifecycle(lifecycle);
 
   getRemainingTasks = (): Task[] => {
     return useTaskStore.getState().tasks.filter((t: Task) => t.status === "started");
@@ -46,25 +60,27 @@ export class DefaultAgentRunModel implements AgentRunModel {
 
   getCurrentTask = (): Task | undefined => this.getRemainingTasks()[0];
 
-  getCompletedTasks = (): string[] =>
-    useTaskStore
-      .getState()
-      .tasks.filter((t: Task) => t.status === "completed")
-      .map((t: Task) => t.value);
+  getCompletedTasks = (): Task[] =>
+    useTaskStore.getState().tasks.filter((t: Task) => t.status === "completed");
 
-  addTask = (taskValue: string) =>
+  addTask = (taskValue: string): void =>
     useTaskStore.getState().addTask({
-      taskId: v4().toString(),
+      id: v4().toString(),
       type: "task",
       value: taskValue,
       status: "started",
+      result: "",
     });
 
   updateTaskStatus(task: Task, status: TaskStatus): Task {
-    const updatedTask = {
-      ...task,
-      status,
-    };
+    return this.updateTask({ ...task, status });
+  }
+
+  updateTaskResult(task: Task, result: string): Task {
+    return this.updateTask({ ...task, result });
+  }
+
+  updateTask(updatedTask: Task): Task {
     useTaskStore.getState().updateTask(updatedTask);
     return updatedTask;
   }

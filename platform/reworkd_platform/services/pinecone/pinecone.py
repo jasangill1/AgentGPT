@@ -3,14 +3,16 @@ from __future__ import annotations
 import uuid
 from typing import Any, Dict, List
 
-import pinecone
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.embeddings.base import Embeddings
+from langchain.document_loaders import PyPDFLoader
+from pinecone import Index  # import doesnt work on plane wifi
 from pydantic import BaseModel
-
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from reworkd_platform.settings import settings
 from reworkd_platform.timer import timed_function
 from reworkd_platform.web.api.memory.memory import AgentMemory
+import os
 
 OPENAI_EMBEDDING_DIM = 1536
 
@@ -32,9 +34,9 @@ class PineconeMemory(AgentMemory):
     Wrapper around pinecone
     """
 
-    def __init__(self, index_name: str):
-        self.index = pinecone.Index(settings.pinecone_index_name)
-        self.namespace = index_name
+    def __init__(self, index_name: str, namespace: str = ""):
+        self.index = Index(settings.pinecone_index_name)
+        self.namespace = namespace or index_name
 
     @timed_function(level="DEBUG")
     def __enter__(self) -> AgentMemory:
@@ -95,8 +97,4 @@ class PineconeMemory(AgentMemory):
 
     @staticmethod
     def should_use() -> bool:
-        return bool(
-            settings.pinecone_index_name
-            and settings.pinecone_api_key
-            and settings.pinecone_environment
-        )
+        return False

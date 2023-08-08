@@ -1,5 +1,5 @@
-import React from "react";
 import clsx from "clsx";
+import React from "react";
 
 interface DrawerItemProps {
   text: string;
@@ -14,12 +14,16 @@ export const DrawerItemButton = (props: DrawerItemProps) => {
     <button
       type="button"
       className={clsx(
-        "cursor-pointer items-center rounded-md text-gray-200 hover:bg-white/5",
+        "text-color-primary hover:background-color-2 cursor-pointer items-center rounded-md",
         props.className
       )}
       onClick={onClick}
     >
-      <span className="text-sm">{text}</span>
+      <span className="text-sm font-light">{text}</span>
     </button>
   );
+};
+
+export const DrawerItemButtonLoader = () => {
+  return <div className="background-color-4 w-50 mx-1.5 h-7 animate-pulse rounded-md"></div>;
 };

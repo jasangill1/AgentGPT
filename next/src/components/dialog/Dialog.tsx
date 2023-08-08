@@ -1,8 +1,8 @@
-import React from "react";
-import Button from "../Button";
-
-import { useTranslation } from "next-i18next";
 import clsx from "clsx";
+import { useTranslation } from "next-i18next";
+import React from "react";
+
+import Button from "../Button";
 
 const Dialog = ({
   header,
@@ -21,7 +21,7 @@ const Dialog = ({
 
   return (
     <DialogBackground isShown={isShown} close={close}>
-      <div className="relative mx-auto my-6 w-auto max-w-4xl rounded-lg border-2 border-zinc-600">
+      <div className="relative mx-auto my-6 w-auto max-w-4xl rounded-lg border border-zinc-600">
         {/*content*/}
         <div
           className="relative z-50 flex w-full flex-col rounded-lg border-0 bg-[#3a3a3a] shadow-lg outline-none focus:outline-none"
@@ -47,7 +47,7 @@ const Dialog = ({
           {/*footer*/}
           <div className="flex items-center justify-end gap-2 rounded-b border-t-2 border-solid border-white/20 p-2">
             <Button enabledClassName="bg-yellow-600 hover:bg-yellow-500" onClick={close}>
-              {`${t("CLOSE", { ns: "common" })}`}
+              {t("CLOSE", { ns: "common" })}
             </Button>
             {footerButton}
           </div>

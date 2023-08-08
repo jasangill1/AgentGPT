@@ -1,25 +1,28 @@
-import { FaArrowRight } from "react-icons/fa";
 import clsx from "clsx";
+import type { PropsWithChildren } from "react";
+import React from "react";
+import { FaChevronRight } from "react-icons/fa";
 
-type BannerBadgeProps = {
-  children: string;
-  onClick: () => void;
-};
+type BadgeProps = PropsWithChildren<React.AnchorHTMLAttributes<HTMLAnchorElement>>;
 
-const BannerBadge = ({ children, onClick }: BannerBadgeProps) => {
-  return (
-    <div
-      className={clsx(
-        "flex w-max cursor-pointer items-center gap-2 rounded-full border border-blue-300 bg-blue-500/40 px-3 py-1 text-xs text-blue-300",
-        "hover:border-blue-200 hover:bg-blue-500/60 hover:text-blue-200",
-        "transition-colors duration-300"
-      )}
-      onClick={onClick}
+const BannerBadge = ({ children, className, ...props }: BadgeProps) => (
+  <div
+    className={clsx(
+      "rounded-full bg-gradient-to-tl from-[#A02BFE] via-[#02FCF1] to-[#A02BFE] p-[1px] subpixel-antialiased",
+      className
+    )}
+  >
+    <a
+      className="animate-border-pulse py group relative flex w-max cursor-pointer items-center gap-2 rounded-full bg-black px-4 py-2 text-xs text-white"
+      {...props}
     >
       <span>{children}</span>
-      <FaArrowRight />
-    </div>
-  );
-};
+      <FaChevronRight
+        size={10}
+        className="font-thin text-gray-400 transition-transform duration-300 group-hover:translate-x-1"
+      />
+    </a>
+  </div>
+);
 
 export default BannerBadge;

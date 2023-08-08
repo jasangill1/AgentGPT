@@ -1,6 +1,8 @@
 import clsx from "clsx";
+import { useRouter } from "next/router";
+
 import type { TemplateModel } from "./TemplateData";
-import { categoryColors } from "./TemplateCategoryColours";
+import { useAgentInputStore } from "../../stores/agentInputStore";
 
 type TemplateCardProps = {
   model: TemplateModel;
@@ -11,7 +13,7 @@ const TemplateCard = ({ model }: TemplateCardProps) => {
     <div
       onClick={handleClick}
       className={clsx(
-        "h-34 w-72 max-w-sm space-y-2 whitespace-normal rounded-2xl border border-white/20 p-4 text-left transition-all duration-100 ",
+        "h-34 w-full max-w-lg cursor-pointer space-y-2 whitespace-normal rounded-lg border border-white/20 p-4 text-left transition-all duration-100",
         "bg-zinc-900 transition-colors hover:bg-zinc-800"
       )}
     >

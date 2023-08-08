@@ -1,9 +1,10 @@
-import type { ModelSettings } from "../types";
-import { getDefaultModelSettings } from "../utils/constants";
 import type { StateCreator } from "zustand";
 import { create } from "zustand";
-import { createSelectors } from "./helpers";
 import { createJSONStorage, persist } from "zustand/middleware";
+
+import { createSelectors } from "./helpers";
+import type { ModelSettings } from "../types";
+import { getDefaultModelSettings } from "../utils/constants";
 
 const resetters: (() => void)[] = [];
 
@@ -39,7 +40,11 @@ export const useModelSettingsStore = createSelectors(
         name: "agentgpt-settings-storage-v2",
         storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
-          modelSettings: state.modelSettings,
+          modelSettings: {
+            ...state.modelSettings,
+            customModelName: "gpt-3.5-turbo",
+            maxTokens: Math.min(state.modelSettings.maxTokens, 4000),
+          },
         }),
       }
     )

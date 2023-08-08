@@ -1,14 +1,15 @@
 from datetime import datetime
+from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.exc import NoResultFound
 
-from reworkd_platform.db.crud import UserCrud
+from reworkd_platform.db.crud.user import UserCrud
 from reworkd_platform.db.dependencies import get_db_session
-from reworkd_platform.db.models.user import User
-from reworkd_platform.schemas import UserBase
+from reworkd_platform.schemas.user import UserBase, OrganizationRole
+from reworkd_platform.web.api.http_responses import forbidden
 
 
 def user_crud(
@@ -18,26 +19,49 @@ def user_crud(
 
 
 async def get_current_user(
+    x_organization_id: Annotated[str | None, Header()] = None,
     bearer: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
     crud: UserCrud = Depends(user_crud),
 ) -> UserBase:
     session_token = bearer.credentials
+
     try:
         session = await crud.get_user_session(session_token)
     except NoResultFound:
-        raise _forbidden("Invalid session token")
+        raise forbidden("Invalid session token")
 
-    user: User = session.user
+    if session.expires <= datetime.utcnow():
+        raise forbidden("Session token expired")
 
-    if session.expires > datetime.utcnow():
-        return UserBase(
-            id=str(user.id),
-            name=str(user.name),
-            email=str(user.email),
+    organization = None
+    if x_organization_id and (
+        org_usr := await crud.get_user_organization(session.user.id, x_organization_id)
+    ):
+        organization = OrganizationRole(
+            id=org_usr.id,
+            role=org_usr.role,
+            organization_id=org_usr.organization_id,
         )
 
-    raise _forbidden("Session token expired")
+    return UserBase(
+        id=session.user.id,
+        name=session.user.name,
+        email=session.user.email,
+        image=session.user.image,
+        organization=organization,
+    )
 
 
-def _forbidden(detail: str = "Forbidden") -> HTTPException:
-    return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+async def get_organization_user(
+    user: UserBase = Depends(get_current_user),
+) -> Optional[UserBase]:
+    if not user.organization:
+        raise forbidden("User is not part of an organization")
+
+    return user
+
+
+async def get_organization(
+    user: UserBase = Depends(get_organization_user),
+) -> Optional[OrganizationRole]:
+    return user.organization

@@ -1,25 +1,54 @@
-import SidebarLayout from "../layout/sidebar";
+import axios from "axios";
+import clsx from "clsx";
+import type { GetStaticProps } from "next";
+import { useTranslation } from "next-i18next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+import React, { useState } from "react";
+import {
+  FaCheckCircle,
+  FaCoins,
+  FaExclamationCircle,
+  FaGlobe,
+  FaKey,
+  FaRobot,
+  FaSyncAlt,
+  FaThermometerFull,
+} from "react-icons/fa";
+
+import nextI18NextConfig from "../../next-i18next.config.js";
+import { useAuth } from "../hooks/useAuth";
+import type { LLMModel } from "../hooks/useModels";
+import { useModels } from "../hooks/useModels";
+import { useSettings } from "../hooks/useSettings";
+import DashboardLayout from "../layout/dashboard";
+import type { GPTModelNames } from "../types";
+import Button from "../ui/button";
 import Combo from "../ui/combox";
 import Input from "../ui/input";
 import type { Language } from "../utils/languages";
 import { languages } from "../utils/languages";
-import React from "react";
-import { useTranslation } from "next-i18next";
-import { serverSideTranslations } from "next-i18next/serverSideTranslations";
-import nextI18NextConfig from "../../next-i18next.config.js";
-import type { GetStaticProps } from "next";
-import { FaCoins, FaGlobe, FaKey, FaRobot, FaSyncAlt, FaThermometerFull } from "react-icons/fa";
-import { useSettings } from "../hooks/useSettings";
-import { useAuth } from "../hooks/useAuth";
-import type { LLMModel } from "../hooks/useModels";
-import { useModels } from "../hooks/useModels";
-import type { GPTModelNames } from "../types";
 
 const SettingsPage = () => {
   const [t] = useTranslation("settings");
   const { settings, updateSettings, updateLangauge } = useSettings();
-  const { session } = useAuth();
+  const { session } = useAuth({ protectedRoute: true });
   const { models, getModel } = useModels();
+
+  const [isApiKeyValid, setIsApiKeyValid] = useState<boolean | undefined>(undefined);
+
+  const validateApiKey = async () => {
+    try {
+      await axios.get("https://api.openai.com/v1/engines", {
+        headers: {
+          Authorization: `Bearer ${settings.customApiKey}`,
+        },
+      });
+
+      setIsApiKeyValid(true);
+    } catch (error) {
+      setIsApiKeyValid(false);
+    }
+  };
 
   const disableAdvancedSettings = !session?.user;
   const model = getModel(settings.customModelName) || {
@@ -37,11 +66,11 @@ const SettingsPage = () => {
   };
 
   return (
-    <SidebarLayout>
-      <div className="grid min-h-screen place-items-center p-2 sm:p-10 lg:p-16">
-        <div className="rounded-xl border-2 border-white/20 bg-neutral-900">
-          <div className="border-b-2 border-white/20 p-3 sm:p-5">
-            <h1 className="text-3xl font-bold dark:text-white md:text-4xl">Settings ⚙</h1>
+    <DashboardLayout>
+      <div className="grid min-h-screen flex-grow place-items-center p-2 sm:p-10 lg:p-16">
+        <div className="background-color-1 border-color-1 m-2 rounded-xl border">
+          <div className="border-color-1 align flex justify-between border-b-2 p-3 sm:p-5">
+            <h1 className="text-color-primary text-3xl font-bold md:text-4xl">⚙ Settings</h1>
           </div>
           <div className="p-3 sm:p-5">
             <div className="flex flex-col gap-3">
@@ -69,14 +98,34 @@ const SettingsPage = () => {
                 }
                 type="text"
                 value={settings.customApiKey}
-                onChange={(e) => updateSettings("customApiKey", e.target.value)}
+                onChange={(e) => {
+                  setIsApiKeyValid(undefined);
+                  updateSettings("customApiKey", e.target.value);
+                }}
                 icon={<FaKey />}
+                className="flex-grow-1 mr-2"
+                right={
+                  <Button
+                    onClick={validateApiKey}
+                    className={clsx(
+                      "transition-400 h-11 w-16 rounded text-sm text-white duration-200",
+                      isApiKeyValid === undefined && "bg-gray-500 hover:bg-gray-700",
+                      isApiKeyValid === true && "bg-green-500 hover:bg-green-700",
+                      isApiKeyValid === false && "bg-red-500 hover:bg-red-700"
+                    )}
+                  >
+                    {isApiKeyValid === undefined && "Test"}
+                    {isApiKeyValid === true && <FaCheckCircle />}
+                    {isApiKeyValid === false && <FaExclamationCircle />}
+                  </Button>
+                }
               />
             </div>
+
             {!disableAdvancedSettings && (
-              <div className="mt-4 flex flex-col rounded-md p-4 ring-2 ring-amber-300/20">
-                <h1 className="pb-4 text-xl font-bold dark:text-gray-200">Advanced Settings</h1>
-                <div className="flex flex-col gap-3">
+              <div className="mt-4 flex flex-col ">
+                <h1 className="text-color-primary pb-4 text-xl font-bold">Advanced Settings</h1>
+                <div className="flex flex-col gap-4">
                   <Combo<LLMModel>
                     label="Model"
                     value={model}
@@ -86,7 +135,7 @@ const SettingsPage = () => {
                     icon={<FaRobot />}
                   />
                   <Input
-                    label={t("TEMPERATURE")}
+                    label={`${t("TEMPERATURE")}`}
                     value={settings.customTemperature}
                     name="temperature"
                     type="range"
@@ -103,7 +152,7 @@ const SettingsPage = () => {
                     disabled={disableAdvancedSettings}
                   />
                   <Input
-                    label={t("LOOP")}
+                    label={`${t("LOOP")}`}
                     value={settings.customMaxLoops}
                     name="loop"
                     type="range"
@@ -118,7 +167,7 @@ const SettingsPage = () => {
                     disabled={disableAdvancedSettings}
                   />
                   <Input
-                    label={t("TOKENS")}
+                    label={`${t("TOKENS")}`}
                     value={settings.maxTokens}
                     name="tokens"
                     type="range"
@@ -138,7 +187,7 @@ const SettingsPage = () => {
           </div>
         </div>
       </div>
-    </SidebarLayout>
+    </DashboardLayout>
   );
 };
 

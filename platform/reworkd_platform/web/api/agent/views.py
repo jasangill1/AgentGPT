@@ -1,14 +1,16 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse as FastAPIStreamingResponse
 from pydantic import BaseModel
 
-from reworkd_platform.schemas import (
+from reworkd_platform.schemas.agent import (
     AgentRun,
     AgentTaskAnalyze,
-    AgentTaskCreate,
     AgentTaskExecute,
+    AgentTaskCreate,
+    AgentSummarize,
+    AgentChat,
     NewTasksResponse,
 )
 from reworkd_platform.web.api.agent.agent_service.agent_service import AgentService
@@ -18,9 +20,11 @@ from reworkd_platform.web.api.agent.agent_service.agent_service_provider import 
 from reworkd_platform.web.api.agent.analysis import Analysis
 from reworkd_platform.web.api.agent.dependancies import (
     agent_analyze_validator,
+    agent_chat_validator,
     agent_create_validator,
     agent_execute_validator,
     agent_start_validator,
+    agent_summarize_validator,
 )
 from reworkd_platform.web.api.agent.tools.tools import get_external_tools, get_tool_name
 
@@ -32,7 +36,9 @@ router = APIRouter()
 )
 async def start_tasks(
     req_body: AgentRun = Depends(agent_start_validator),
-    agent_service: AgentService = Depends(get_agent_service(agent_start_validator)),
+    agent_service: AgentService = Depends(
+        get_agent_service(agent_start_validator, azure=True)
+    ),
 ) -> NewTasksResponse:
     new_tasks = await agent_service.start_goal_agent(goal=req_body.goal)
     return NewTasksResponse(newTasks=new_tasks, run_id=req_body.run_id)
@@ -67,7 +73,9 @@ async def execute_tasks(
 @router.post("/create")
 async def create_tasks(
     req_body: AgentTaskCreate = Depends(agent_create_validator),
-    agent_service: AgentService = Depends(get_agent_service(agent_create_validator)),
+    agent_service: AgentService = Depends(
+        get_agent_service(agent_create_validator, azure=True)
+    ),
 ) -> NewTasksResponse:
     new_tasks = await agent_service.create_tasks_agent(
         goal=req_body.goal,
@@ -79,10 +87,37 @@ async def create_tasks(
     return NewTasksResponse(newTasks=new_tasks, run_id=req_body.run_id)
 
 
+@router.post("/summarize")
+async def summarize(
+    req_body: AgentSummarize = Depends(agent_summarize_validator),
+    agent_service: AgentService = Depends(
+        get_agent_service(validator=agent_summarize_validator, streaming=True),
+    ),
+) -> FastAPIStreamingResponse:
+    return await agent_service.summarize_task_agent(
+        goal=req_body.goal or "",
+        results=req_body.results,
+    )
+
+
+@router.post("/chat")
+async def chat(
+    req_body: AgentChat = Depends(agent_chat_validator),
+    agent_service: AgentService = Depends(
+        get_agent_service(validator=agent_chat_validator, streaming=True),
+    ),
+) -> FastAPIStreamingResponse:
+    return await agent_service.chat(
+        message=req_body.message,
+        results=req_body.results,
+    )
+
+
 class ToolModel(BaseModel):
     name: str
     description: str
     color: str
+    image_url: Optional[str]
 
 
 class ToolsResponse(BaseModel):
@@ -97,6 +132,7 @@ async def get_user_tools() -> ToolsResponse:
             name=get_tool_name(tool),
             description=tool.public_description,
             color="TODO: Change to image of tool",
+            image_url=tool.image_url,
         )
         for tool in tools
         if tool.available()

@@ -1,61 +1,69 @@
-import React, { useEffect, useRef } from "react";
-import { useTranslation } from "next-i18next";
+import clsx from "clsx";
+import { AnimatePresence, motion } from "framer-motion";
 import { type GetStaticProps, type NextPage } from "next";
-import Button from "../components/Button";
-import { FaCog, FaRobot, FaStar } from "react-icons/fa";
-import { VscLoading } from "react-icons/vsc";
-import AutonomousAgent from "../services/agent/autonomous-agent";
-import HelpDialog from "../components/dialog/HelpDialog";
-import { useAuth } from "../hooks/useAuth";
-import { useAgent } from "../hooks/useAgent";
-import { isEmptyOrBlank } from "../utils/whitespace";
-import { resetAllMessageSlices, useAgentStore, useMessageStore } from "../stores";
+import { useTranslation } from "next-i18next";
 import { serverSideTranslations } from "next-i18next/serverSideTranslations";
-import { languages } from "../utils/languages";
+import React, { useEffect, useRef } from "react";
+import { FaCog, FaRobot, FaStar } from "react-icons/fa";
+
 import nextI18NextConfig from "../../next-i18next.config.js";
+import AppTitle from "../components/AppTitle";
+import Button from "../components/Button";
+import AgentControls from "../components/console/AgentControls";
+import { ChatMessage } from "../components/console/ChatMessage";
+import ChatWindow from "../components/console/ChatWindow";
+import { ChatWindowTitle } from "../components/console/ChatWindowTitle";
+import ExampleAgents from "../components/console/ExampleAgents";
+import Summarize from "../components/console/SummarizeButton";
+import HelpDialog from "../components/dialog/HelpDialog";
 import { SignInDialog } from "../components/dialog/SignInDialog";
 import { ToolsDialog } from "../components/dialog/ToolsDialog";
-import SidebarLayout from "../layout/sidebar";
-import AppTitle from "../components/AppTitle";
-import FadeIn from "../components/motions/FadeIn";
+import TaskSidebar from "../components/drawer/TaskSidebar";
 import Input from "../components/Input";
-import clsx from "clsx";
 import Expand from "../components/motions/expand";
-import ChatWindow from "../components/console/ChatWindow";
-import { TaskWindow } from "../components/TaskWindow";
-import { AnimatePresence, motion } from "framer-motion";
+import FadeIn from "../components/motions/FadeIn";
+import { useAgent } from "../hooks/useAgent";
+import { useAuth } from "../hooks/useAuth";
 import { useSettings } from "../hooks/useSettings";
-import { useRouter } from "next/router";
-import { useAgentInputStore } from "../stores/agentInputStore";
-import { MessageService } from "../services/agent/message-service";
+import DashboardLayout from "../layout/dashboard";
+import { AgentApi } from "../services/agent/agent-api";
 import { DefaultAgentRunModel } from "../services/agent/agent-run-model";
-import { resetAllTaskSlices } from "../stores/taskStore";
-import { ChatWindowTitle } from "../components/console/ChatWindowTitle";
+import AutonomousAgent from "../services/agent/autonomous-agent";
+import { MessageService } from "../services/agent/message-service";
+import {
+  resetAllAgentSlices,
+  resetAllMessageSlices,
+  useAgentStore,
+  useMessageStore,
+} from "../stores";
+import { useAgentInputStore } from "../stores/agentInputStore";
+import { resetAllTaskSlices, useTaskStore } from "../stores/taskStore";
+import { toApiModelSettings } from "../utils/interfaces";
+import { languages } from "../utils/languages";
+import { isEmptyOrBlank } from "../utils/whitespace";
 
 const Home: NextPage = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation("indexPage");
   const addMessage = useMessageStore.use.addMessage();
   const messages = useMessageStore.use.messages();
-  const { query } = useRouter();
+  const tasks = useTaskStore.use.tasks();
 
   const setAgent = useAgentStore.use.setAgent();
-  const isAgentStopped = useAgentStore.use.isAgentStopped();
-  const setIsAgentStopped = useAgentStore.use.setIsAgentStopped();
+  const agentLifecycle = useAgentStore.use.lifecycle();
 
   const agent = useAgentStore.use.agent();
 
   const fullscreen = agent !== null;
-  const { session, status } = useAuth();
+  const { session } = useAuth();
   const nameInput = useAgentInputStore.use.nameInput();
   const setNameInput = useAgentInputStore.use.setNameInput();
   const goalInput = useAgentInputStore.use.goalInput();
   const setGoalInput = useAgentInputStore.use.setGoalInput();
-  const [mobileVisibleWindow, setMobileVisibleWindow] = React.useState<"Chat" | "Tasks">("Chat");
+  const [chatInput, setChatInput] = React.useState("");
   const { settings } = useSettings();
 
   const [showSignInDialog, setShowSignInDialog] = React.useState(false);
   const [showToolsDialog, setShowToolsDialog] = React.useState(false);
-  const [hasSaved, setHasSaved] = React.useState(false);
   const agentUtils = useAgent();
 
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -66,80 +74,91 @@ const Home: NextPage = () => {
   const setAgentRun = (newName: string, newGoal: string) => {
     setNameInput(newName);
     setGoalInput(newGoal);
-    handleNewGoal(newName, newGoal);
+    handlePlay(newName, newGoal);
   };
 
-  const disableDeployAgent =
-    agent != null || isEmptyOrBlank(nameInput) || isEmptyOrBlank(goalInput);
+  const disableStartAgent =
+    (agent !== null && !["paused", "stopped"].includes(agentLifecycle)) ||
+    isEmptyOrBlank(nameInput) ||
+    isEmptyOrBlank(goalInput);
 
-  const handleNewGoal = (name: string, goal: string) => {
-    if (name.trim() === "" || goal.trim() === "") {
+  const handlePlay = (name: string, goal: string) => {
+    if (agentLifecycle === "stopped") handleRestart();
+    else if (name.trim() === "" || goal.trim() === "") return;
+    else handleNewAgent(name.trim(), goal.trim());
+  };
+
+  const handleNewAgent = (name: string, goal: string) => {
+    if (session === null) {
+      storeAgentDataInLocalStorage(name, goal);
+      setShowSignInDialog(true);
       return;
     }
 
-    if (session === null) {
-      setShowSignInDialog(true);
+    if (agent && agentLifecycle == "paused") {
+      agent?.run().catch(console.error);
       return;
     }
 
     const model = new DefaultAgentRunModel(name.trim(), goal.trim());
     const messageService = new MessageService(addMessage);
+    const agentApi = new AgentApi({
+      model_settings: toApiModelSettings(settings, session),
+      name: name,
+      goal: goal,
+      session,
+      agentUtils: agentUtils,
+    });
     const newAgent = new AutonomousAgent(
       model,
       messageService,
-      () => setAgent(null),
       settings,
+      agentApi,
       session ?? undefined
     );
     setAgent(newAgent);
-    setHasSaved(false);
+    newAgent?.run().then(console.log).catch(console.error);
+  };
+
+  const storeAgentDataInLocalStorage = (name: string, goal: string) => {
+    const agentData = { name, goal };
+    localStorage.setItem("agentData", JSON.stringify(agentData));
+  };
+
+  const getAgentDataFromLocalStorage = () => {
+    const agentData = localStorage.getItem("agentData");
+    return agentData ? (JSON.parse(agentData) as { name: string; goal: string }) : null;
+  };
+
+  useEffect(() => {
+    if (session !== null) {
+      const agentData = getAgentDataFromLocalStorage();
+
+      if (agentData) {
+        setNameInput(agentData.name);
+        setGoalInput(agentData.goal);
+        localStorage.removeItem("agentData");
+      }
+    }
+  }, [session]);
+
+  const handleRestart = () => {
     resetAllMessageSlices();
     resetAllTaskSlices();
-    newAgent?.run().then(console.log).catch(console.error);
-    setIsAgentStopped(false);
+    resetAllAgentSlices();
   };
 
   const handleKeyPress = (
     e: React.KeyboardEvent<HTMLInputElement> | React.KeyboardEvent<HTMLTextAreaElement>
   ) => {
     // Only Enter is pressed, execute the function
-    if (e.key === "Enter" && !disableDeployAgent && !e.shiftKey) {
-      handleNewGoal(nameInput, goalInput);
+    if (e.key === "Enter" && !disableStartAgent && !e.shiftKey) {
+      handlePlay(nameInput, goalInput);
     }
   };
 
-  const handleStopAgent = () => {
-    agent?.manuallyStopAgent();
-    setIsAgentStopped(true);
-  };
-
-  const handleVisibleWindowClick = (visibleWindow: "Chat" | "Tasks") => {
-    // This controls whether the ChatWindow or TaskWindow is visible on mobile
-    setMobileVisibleWindow(visibleWindow);
-  };
-
-  const shouldShowSave =
-    status === "authenticated" && isAgentStopped && messages.length && !hasSaved;
-
-  const firstButton = (
-    <Button
-      ping={!disableDeployAgent}
-      disabled={disableDeployAgent}
-      onClick={() => handleNewGoal(nameInput, goalInput)}
-    >
-      {agent == null ? (
-        t("BUTTON_DEPLOY_AGENT", { ns: "indexPage" })
-      ) : (
-        <>
-          <VscLoading className="animate-spin" size={20} />
-          <span className="ml-2">{t("RUNNING", { ns: "common" })}</span>
-        </>
-      )}
-    </Button>
-  );
-
   return (
-    <SidebarLayout>
+    <DashboardLayout rightSidebar={<TaskSidebar />}>
       <HelpDialog />
       <ToolsDialog show={showToolsDialog} close={() => setShowToolsDialog(false)} />
 
@@ -147,7 +166,10 @@ const Home: NextPage = () => {
       <div id="content" className="flex min-h-screen w-full items-center justify-center">
         <div
           id="layout"
-          className="flex h-screen w-full max-w-screen-xl flex-col items-center gap-1 p-2 sm:gap-3 sm:p-4"
+          className={clsx(
+            "flex h-screen w-full max-w-screen-xl flex-col items-center gap-1 p-2 pt-10 sm:gap-3 sm:p-4",
+            agent !== null ? "pt-11" : "pt-3"
+          )}
         >
           {
             <AnimatePresence>
@@ -163,51 +185,37 @@ const Home: NextPage = () => {
               )}
             </AnimatePresence>
           }
-          <div>
-            <Button
-              className={clsx(
-                "rounded-r-none py-0 text-sm sm:py-[0.25em] xl:hidden",
-                mobileVisibleWindow == "Chat" ||
-                  "border-2 border-white/20 bg-gradient-to-t from-sky-500 to-sky-600 hover:bg-gradient-to-t hover:from-sky-400 hover:to-sky-600"
-              )}
-              disabled={mobileVisibleWindow == "Chat"}
-              onClick={() => handleVisibleWindowClick("Chat")}
-            >
-              Chat
-            </Button>
-            <Button
-              className={clsx(
-                "rounded-l-none py-0 text-sm sm:py-[0.25em] xl:hidden",
-                mobileVisibleWindow == "Tasks" ||
-                  "border-2 border-white/20 bg-gradient-to-t from-sky-500 to-sky-600 hover:bg-gradient-to-t hover:from-sky-400 hover:to-sky-600"
-              )}
-              disabled={mobileVisibleWindow == "Tasks"}
-              onClick={() => handleVisibleWindowClick("Tasks")}
-            >
-              Tasks
-            </Button>
-          </div>
           <Expand className="flex w-full flex-grow overflow-hidden">
             <ChatWindow
               messages={messages}
               title={<ChatWindowTitle model={settings.customModelName} />}
-              onSave={
-                shouldShowSave
-                  ? (format) => {
-                      setHasSaved(true);
-                      agentUtils.saveAgent({
-                        goal: goalInput.trim(),
-                        name: nameInput.trim(),
-                        tasks: messages,
-                      });
+              chatControls={
+                agent
+                  ? {
+                      value: chatInput,
+                      onChange: (value: string) => {
+                        setChatInput(value);
+                      },
+                      handleChat: async () => {
+                        const currentInput = chatInput;
+                        setChatInput("");
+                        await agent?.chat(currentInput);
+                      },
+                      loading: tasks.length == 0 || chatInput === "",
                     }
                   : undefined
               }
-              scrollToBottom
-              setAgentRun={setAgentRun}
-              visibleOnMobile={mobileVisibleWindow === "Chat"}
-            />
-            <TaskWindow visibleOnMobile={mobileVisibleWindow === "Tasks"} />
+            >
+              {messages.length === 0 && <ExampleAgents setAgentRun={setAgentRun} />}
+              {messages.map((message, index) => {
+                return (
+                  <FadeIn key={`${index}-${message.type}`}>
+                    <ChatMessage message={message} />
+                  </FadeIn>
+                );
+              })}
+              <Summarize />
+            </ChatWindow>
           </Expand>
 
           <FadeIn
@@ -231,9 +239,7 @@ const Home: NextPage = () => {
                       left={
                         <>
                           <FaRobot />
-                          <span className="ml-2">{`${t("AGENT_NAME", {
-                            ns: "indexPage",
-                          })}`}</span>
+                          <span className="ml-2">{`${t("AGENT_NAME")}`}</span>
                         </>
                       }
                       value={nameInput}
@@ -256,49 +262,30 @@ const Home: NextPage = () => {
                     left={
                       <>
                         <FaStar />
-                        <span className="ml-2">{`${t("LABEL_AGENT_GOAL", {
-                          ns: "indexPage",
-                        })}`}</span>
+                        <span className="ml-2">{`${t("LABEL_AGENT_GOAL")}`}</span>
                       </>
                     }
                     disabled={agent != null}
                     value={goalInput}
                     onChange={(e) => setGoalInput(e.target.value)}
                     onKeyDown={(e) => handleKeyPress(e)}
-                    placeholder={`${t("PLACEHOLDER_AGENT_GOAL", {
-                      ns: "indexPage",
-                    })}`}
+                    placeholder={`${t("PLACEHOLDER_AGENT_GOAL")}`}
                     type="textarea"
                   />
                 </motion.div>
               )}
             </AnimatePresence>
-
-            <div className="flex gap-2">
-              {firstButton}
-              <Button
-                disabled={agent === null}
-                onClick={handleStopAgent}
-                enabledClassName={"bg-red-600 hover:bg-red-400"}
-              >
-                {!isAgentStopped && agent === null ? (
-                  <>
-                    <VscLoading className="animate-spin" size={20} />
-                    <span className="ml-2">{`${t("BUTTON_STOPPING", {
-                      ns: "indexPage",
-                    })}`}</span>
-                  </>
-                ) : (
-                  `${t("BUTTON_STOP_AGENT", "BUTTON_STOP_AGENT", {
-                    ns: "indexPage",
-                  })}`
-                )}
-              </Button>
-            </div>
+            <AgentControls
+              disablePlay={disableStartAgent}
+              lifecycle={agentLifecycle}
+              handlePlay={() => handlePlay(nameInput, goalInput)}
+              handlePause={() => agent?.pauseAgent()}
+              handleStop={() => agent?.stopAgent()}
+            />
           </FadeIn>
         </div>
       </div>
-    </SidebarLayout>
+    </DashboardLayout>
   );
 };
 

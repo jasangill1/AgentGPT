@@ -1,5 +1,5 @@
-import type AutonomousAgent from "../autonomous-agent";
 import type AgentWork from "./agent-work";
+import type AutonomousAgent from "../autonomous-agent";
 
 export default class StartGoalWork implements AgentWork {
   tasksValues: string[] = [];
@@ -7,17 +7,20 @@ export default class StartGoalWork implements AgentWork {
   constructor(private parent: AutonomousAgent) {}
 
   run = async () => {
-    this.parent.messageService.sendGoalMessage(this.parent.model.getGoal());
-    this.tasksValues = await this.parent.$api.getInitialTasks();
+    const goalMessage = this.parent.messageService.sendGoalMessage(this.parent.model.getGoal());
+    this.tasksValues = await this.parent.api.getInitialTasks();
+    await this.parent.api.createAgent();
+    this.parent.api.saveMessages([goalMessage]);
   };
 
   conclude = async () => {
-    await this.parent.createTasks(this.tasksValues);
+    const messages = await this.parent.createTaskMessages(this.tasksValues);
+    this.parent.api.saveMessages(messages);
   };
 
   onError = (e: unknown): boolean => {
     this.parent.messageService.sendErrorMessage(e);
-    return false;
+    return true;
   };
 
   next = () => undefined;

@@ -1,19 +1,43 @@
-import type { RequestBody } from "../../utils/interfaces";
-import type { Analysis } from "./analysis";
 import type { Session } from "next-auth";
+
+import type { Analysis } from "./analysis";
+import type { AgentUtils } from "../../hooks/useAgent";
 import { useAgentStore } from "../../stores";
+import type { Message } from "../../types/message";
+import type { RequestBody } from "../../utils/interfaces";
 import * as apiUtils from "../api-utils";
 
 type ApiProps = Pick<RequestBody, "model_settings" | "goal"> & {
+  name: string;
   session?: Session;
+  agentUtils: AgentUtils;
 };
 
 export class AgentApi {
   readonly props: ApiProps;
+  agentId: string | undefined;
   runId: string | undefined;
 
   constructor(apiProps: ApiProps) {
     this.props = apiProps;
+  }
+
+  async createAgent(): Promise<void> {
+    if (this.agentId) return;
+    const agent = await this.props.agentUtils.createAgent({
+      name: this.props.name,
+      goal: this.props.goal,
+    });
+    this.agentId = agent?.id;
+  }
+
+  saveMessages(messages: Message[]): void {
+    if (!this.agentId) return;
+
+    this.props.agentUtils.saveAgent({
+      id: this.agentId,
+      tasks: messages,
+    });
   }
 
   async getInitialTasks(): Promise<string[]> {
@@ -68,20 +92,6 @@ export class AgentApi {
       return data;
     } finally {
       useAgentStore.getState().setIsAgentThinking(false);
-    }
-  }
-}
-
-export async function withRetries(
-  fn: () => Promise<void>,
-  onError: (error: unknown) => Promise<boolean>, // Function to handle the error and return whether to continue
-  retries = 3
-): Promise<void> {
-  for (let i = 1; i < retries + 1; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if ((await onError(error)) || i === retries) return;
     }
   }
 }
